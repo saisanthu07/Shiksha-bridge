@@ -1,7 +1,19 @@
 import axios from 'axios';
 
+// Determine appropriate API base URL
+// In production or when hosted together (e.g. Vercel), '/api' routes directly to backend
+const getBaseURL = () => {
+  if (typeof window !== 'undefined') {
+    // If running in browser and NOT localhost:3000 (e.g., Vercel or custom domain production deploy)
+    if (window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1') {
+      return '/api';
+    }
+  }
+  return process.env.REACT_APP_API_URL || '/api';
+};
+
 const api = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || '/api',
+  baseURL: getBaseURL(),
   timeout: 15000,
   headers: { 'Content-Type': 'application/json' },
 });
@@ -63,7 +75,7 @@ api.interceptors.response.use(
       const refreshToken = localStorage.getItem('sb_refresh_token');
       if (refreshToken) {
         try {
-          const response = await axios.post((process.env.REACT_APP_API_URL || '/api') + '/auth/refresh-token', {
+          const response = await axios.post(`${getBaseURL()}/auth/refresh-token`, {
             refreshToken,
           });
 
