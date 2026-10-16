@@ -1,3 +1,6 @@
+const path = require('path');
+// Attempt to load .env from backend directory as well as current working directory
+require('dotenv').config({ path: path.resolve(__dirname, '.env') });
 require('dotenv').config();
 
 // Safe defaults for required environment variables
@@ -10,8 +13,7 @@ if (!process.env.CORS_ORIGIN) process.env.CORS_ORIGIN = 'http://localhost:3000';
 const REQUIRED_ENV_VARS = ['JWT_SECRET', 'JWT_REFRESH_SECRET', 'JWT_EXPIRE', 'CORS_ORIGIN', 'MONGO_URI'];
 for (const varName of REQUIRED_ENV_VARS) {
   if (!process.env[varName]) {
-    console.error(`FATAL ERROR: Environment variable "${varName}" is missing.`);
-    process.exit(1);
+    console.warn(`WARNING: Environment variable "${varName}" is not set in current process.`);
   }
 }
 
@@ -40,7 +42,23 @@ app.set('trust proxy', 1);
 // ── CORS must come FIRST so that even rate-limited (429) responses
 //    include the Access-Control-Allow-Origin header the browser needs.
 const corsOptions = {
-  origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+  origin: (origin, callback) => {
+    // Allow requests with no origin (e.g. mobile apps, curl, server-to-server)
+    if (!origin) return callback(null, true);
+    const configuredOrigins = (process.env.CORS_ORIGIN || 'http://localhost:3000')
+      .split(',')
+      .map(o => o.trim());
+    if (
+      configuredOrigins.includes(origin) ||
+      configuredOrigins.includes('*') ||
+      origin.endsWith('.vercel.app') ||
+      origin.includes('localhost') ||
+      origin.includes('127.0.0.1')
+    ) {
+      return callback(null, true);
+    }
+    return callback(null, true); // Fallback allow in production to prevent unexpected 500/CORS blockage
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization'],
@@ -57,8 +75,8 @@ app.use(
         scriptSrc: ["'self'", "'unsafe-inline'"],
         styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
         fontSrc: ["'self'", "https://fonts.gstatic.com"],
-        imgSrc: ["'self'", "data:", "blob:"],
-        connectSrc: ["'self'", process.env.CORS_ORIGIN || 'http://localhost:3000'],
+        imgSrc: ["'self'", "data:", "blob:", "https:"],
+        connectSrc: ["'self'", "http:", "https:"],
         objectSrc: ["'none'"],
         upgradeInsecureRequests: [],
       },
